@@ -14,12 +14,6 @@ def main():
     # receive all packages
     rawSocket.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
 
-    switcher = {
-            1: analyze_ICMP,
-            6: analyze_TCP,
-            17: analyze_UDP,
-        }
-
     print("Sniffer started please introduce number of packages you wan to capture");
     print("Number of packages:", end="") 
     packagesNumber = input()
