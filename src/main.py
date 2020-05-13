@@ -132,8 +132,24 @@ def analyze_UDP(rawData):
 
 def analyze_DNS(rawData):
 
+    dnsHeader = struct.unpack('!6H', rawData[:12])
+    ident = dnsHeader[0]
+    qr = dnsHeader[1] & 0x8000
+    opCode = dnsHeader[1] & 0x7800
+    aaFlag = dnsHeader[1] & 0x0400
+    tcFlag = dnsHeader[1] & 0x0200
+    rdFlag = dnsHeader[1] & 0x0100
+    raFlag = dnsHeader[1] & 0x0080
+    zFlag = dnsHeader[1] & 0x0040
+    adFlag = dnsHeader[1] & 0x0020
+    cdFlag = dnsHeader[1] & 0x0001
+    rcode = dnsHeader[1] & 0xF 
+    totalQuest = dnsHeader[2]
+    totalAns = dnsHeader[3]
+    authority = dnsHeader[4]
+
     print('###############   DNS   ###############')
-    print('Not ready')
+    
 
 #### END analyze region ####
 
