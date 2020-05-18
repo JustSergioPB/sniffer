@@ -1,162 +1,161 @@
 import socket
 import struct
 
-main()
 
 def main():
     # the public network interface
     HOST = socket.gethostbyname(socket.gethostname())
     # create a raw socket and bind it to the public interface
-    rawSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
-    rawSocket.bind((HOST, 0))
+    raw_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
+    raw_socket.bind((HOST, 0))
     # Include IP headers
-    rawSocket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+    raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
     # receive all packages
-    rawSocket.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
+    raw_socket.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
 
-    print("Sniffer started please introduce number of packages you wan to capture");
-    print("Number of packages:", end="") 
-    packagesNumber = input()
+    print("Sniffer started please introduce number of packages you wan to capture")
+    print("Number of packages: ", end="")
+    packages_number = int(input())
 
-    for i in range(packagesNumber):
+    for i in range(packages_number):
         print('############### {} Package ###############'.format(i))
-        rawData = rawSocket.recvfrom(65535)
-        etherProtocol, etherData = analyze_Ethernet(rawData)
+        raw_data = raw_socket.recvfrom(65535)
+        ether_protocol, ether_data = analyze_ethernet(raw_data)
 
-        if etherProtocol == 8:
-            ipProtocol, ipData = analyze_IP(etherData)
-            
-            if ipProtocol == 1:
-                analyze_ICMP(ipData)
+        if ether_protocol == 8:
+            ip_protocol, ip_data = analyze_ip(ether_data)
 
-            if ipProtocol == 6:
-                dns, tcpData = analyze_TCP(ipData)
+            if ip_protocol == 1:
+                analyze_icmp(ip_data)
 
-                if dns: analyze_DNS(tcpData)
+            if ip_protocol == 6:
+                analyze_tcp(ip_data)
 
-            if ipProtocol == 17:
-                dns, udpData = analyze_UDP(ipData)
+            if ip_protocol == 17:
+                dns, udp_data = analyze_udp(ip_data)
 
-                if dns: analyze_DNS(udpData)
+                if dns:
+                    analyze_dns(udp_data)
 
-            
 
-    
-#### analyze region ####
-
-def analyze_Ethernet(rawData):
-    ethernetHeader = struct.unpack("!6s6sH", rawData[:14])
-    destMAC = ethernetHeader[0]
-    sourMAC = ethernetHeader[1]
-    protocol = ethernetHeader[2] >> 8
+def analyze_ethernet(raw_data):
+    ethernet_header = struct.unpack("!6s6sH", raw_data[:14])
+    dest_mac = ethernet_header[0]
+    sour_mac = ethernet_header[1]
+    protocol = ethernet_header[2] >> 8
 
     print('############### ETHERNET ###############')
-    print('Destination MAC: {}, Source MAC: {}, Protocol: {}'.format(destMAC, sourMAC, protocol))
+    print('Destination MAC: {}, Source MAC: {}, Protocol: {}'.format(dest_mac, sour_mac, protocol))
 
-    return protocol, rawData[14:]
+    return protocol, raw_data[14:]
 
-def analyze_IP(rawData):
-    ipHeader = struct.unpack("!2B 3H 2B H 2L", rawData[:20])
-    version = ipHeader[0] >> 4
-    ihl = ipHeader[0] & 0xF
-    ToS = ipHeader[1]
-    totalLength = ipHeader[2]
-    identity = ipHeader[3]
-    noFragFlag = ipHeader[4] & 0x8000
-    moreFrag = ipHeader[4] & 0x4000
-    fragOffset = ipHeader[4] & 0x1FFF 
-    ttl = ipHeader[5]
-    protocol = ipHeader[6]
-    checksum = ipHeader[7]
-    sourAddress = format_IPv4Address(ipHeader[8])
-    destAddress = format_IPv4Address(ipHeader[9])
+
+def analyze_ip(raw_data):
+    ip_header = struct.unpack("!2B 3H 2B H 2L", raw_data[:20])
+    version = ip_header[0] >> 4
+    ihl = ip_header[0] & 0xF
+    tos = ip_header[1]
+    total_length = ip_header[2]
+    identity = ip_header[3]
+    no_frag_flag = ip_header[4] & 0x8000
+    more_frag = ip_header[4] & 0x4000
+    frag_offset = ip_header[4] & 0x1FFF
+    ttl = ip_header[5]
+    protocol = ip_header[6]
+    checksum = ip_header[7]
+    sour_address = format_ipv4_address(ip_header[8])
+    dest_address = format_ipv4_address(ip_header[9])
 
     print('###############    IP    ###############')
-    print('Version: {}, IHL: {}, ToS: {}, Total Length: {}'.format(version, ihl, ToS, totalLength))
-    print('Identity: {}, Fragment Flag: {}, More Fragments Flag: {}, Fragment Offset: {}'.format(identity, noFragFlag, moreFrag, fragOffset))
+    print('Version: {}, IHL: {}, ToS: {}, Total Length: {}'.format(version, ihl, tos, total_length))
+    print('Identity: {}, Fragment Flag: {}, More Fragments Flag: {}, Fragment Offset: {}'.format(identity, no_frag_flag,
+                                                                                                 more_frag,
+                                                                                                 frag_offset))
     print('TTL: {}, Protocol: {}, Checksum: {}'.format(ttl, protocol, checksum))
-    print('Source Address: ', sourAddress)
-    print('Destination Address: ', destAddress)
+    print('Source Address: ', sour_address)
+    print('Destination Address: ', dest_address)
+
+    return protocol, raw_data[20:]
 
 
-    return protocol, rawData[20:]
-
-def analyze_ICMP(rawData):
-    icmpType, code, checksum = struct.unpack('! 2B H', rawData[:4])
+def analyze_icmp(raw_data):
+    icmp_type, code, checksum = struct.unpack('! 2B H', raw_data[:4])
     print('###############   ICMP   ###############')
-    print('type: {}, code: {}, checksum: {}'.format(icmpType, code, checksum))
+    print('type: {}, code: {}, checksum: {}'.format(icmp_type, code, checksum))
 
-def analyze_TCP(rawData):
-    tcpHeader = struct.unpack('! 2H 2L 4H', rawData[:20])
-    sourcePort = tcpHeader[0] 
-    destPort = tcpHeader[1] 
-    seqNumber = tcpHeader[2] 
-    ack = tcpHeader[3] 
-    offset_reserved_flags = tcpHeader[4]
-    offset = tcpHeader[4]  & 0xF000
-    reserved = tcpHeader[4] & 0xE00
-    nsFlag = tcpHeader[4] & 0x100
-    cwrFlag = tcpHeader[4] & 0x80
-    eceFlag = tcpHeader[4] & 0x40
-    urgFlag = tcpHeader[4] & 0x20
-    ackFlag = tcpHeader[4] & 0x10
-    pshFlag = tcpHeader[4] & 0x8
-    rstFlag = tcpHeader[4] & 0x4
-    synFlag = tcpHeader[4] & 0x2
-    finFlag = tcpHeader[4] & 0x1
-    window = tcpHeader[5] 
-    checksum = tcpHeader[6] 
-    urgentPointer = tcpHeader[7]
+
+def analyze_tcp(raw_data):
+    tcp_header = struct.unpack('! 2H 2L 4H', raw_data[:20])
+    source_port = tcp_header[0]
+    dest_port = tcp_header[1]
+    seq_number = tcp_header[2]
+    ack = tcp_header[3]
+    offset = tcp_header[4] & 0xF000
+    reserved = tcp_header[4] & 0xE00
+    ns_flag = tcp_header[4] & 0x100
+    cwr_flag = tcp_header[4] & 0x80
+    ece_flag = tcp_header[4] & 0x40
+    urg_flag = tcp_header[4] & 0x20
+    ack_flag = tcp_header[4] & 0x10
+    psh_flag = tcp_header[4] & 0x8
+    rst_flag = tcp_header[4] & 0x4
+    syn_flag = tcp_header[4] & 0x2
+    fin_flag = tcp_header[4] & 0x1
+    window = tcp_header[5]
+    checksum = tcp_header[6]
+    urgent_pointer = tcp_header[7]
 
     print('###############   TCP   ###############')
-    print('Source Port: {}, Destination Port: {}'.format(sourcePort, destPort))
-    print('Sequence Number: {}, Acknoledgement: {}'.format(seqNumber, ack))
+    print('Source Port: {}, Destination Port: {}'.format(source_port, dest_port))
+    print('Sequence Number: {}, Acknoledgement: {}'.format(seq_number, ack))
     print('Offset: {}, Reserved: {}'.format(offset, reserved))
     print('Flags: {}, Reserved: {}'.format(offset, reserved))
-    print('Window: {}, Checksum: {}, Urgent Pointer: {}'.format(window, checksum, urgentPointer))
+    print('Window: {}, Checksum: {}, Urgent Pointer: {}'.format(window, checksum, urgent_pointer))
 
-    return (sourcePort | destPort) == 53, rawData[20:]
+    return (source_port | dest_port) == 53, raw_data[20:]
 
 
-def analyze_UDP(rawData):
-    udpHeader = struct.unpack('!4H', rawData[:8])
-    sourcePort = udpHeader[0]
-    destPort = udpHeader[1]
-    length = udpHeader[2]
-    checksum = udpHeader[3]
+def analyze_udp(raw_data):
+    udp_header = struct.unpack('!4H', raw_data[:8])
+    source_port = udp_header[0]
+    dest_port = udp_header[1]
+    length = udp_header[2]
+    checksum = udp_header[3]
 
     print('###############   UDP   ###############')
-    print('Source Port: {}, Destination Port: {}, length: {}, checksum: {}'.format(sourcePort, destPort, length, checksum))
+    print('Source Port: {}, Destination Port: {}, length: {}, checksum: {}'.format(source_port, dest_port, length,
+                                                                                   checksum))
 
-    return (sourcePort | destPort) == 53, rawData[8:]
+    return (source_port | dest_port) == 53, raw_data[8:]
 
-def analyze_DNS(rawData):
 
-    dnsHeader = struct.unpack('!6H', rawData[:12])
-    ident = dnsHeader[0]
-    qr = dnsHeader[1] & 0x8000
-    opCode = dnsHeader[1] & 0x7800
-    aaFlag = dnsHeader[1] & 0x0400
-    tcFlag = dnsHeader[1] & 0x0200
-    rdFlag = dnsHeader[1] & 0x0100
-    raFlag = dnsHeader[1] & 0x0080
-    zFlag = dnsHeader[1] & 0x0040
-    adFlag = dnsHeader[1] & 0x0020
-    cdFlag = dnsHeader[1] & 0x0001
-    rcode = dnsHeader[1] & 0xF 
-    totalQuest = dnsHeader[2]
-    totalAns = dnsHeader[3]
-    authority = dnsHeader[4]
+def analyze_dns(raw_data):
+    dns_header = struct.unpack('!6H', raw_data[:12])
+    ident = dns_header[0]
+    qr = dns_header[1] & 0x8000
+    op_code = dns_header[1] & 0x7800
+    aa_flag = dns_header[1] & 0x0400
+    tc_flag = dns_header[1] & 0x0200
+    rd_flag = dns_header[1] & 0x0100
+    ra_flag = dns_header[1] & 0x0080
+    z_flag = dns_header[1] & 0x0040
+    ad_flag = dns_header[1] & 0x0020
+    cd_flag = dns_header[1] & 0x0001
+    rcode = dns_header[1] & 0xF
+    total_quest = dns_header[2]
+    total_ans = dns_header[3]
+    authority = dns_header[4]
 
     print('###############   DNS   ###############')
-    
 
-#### END analyze region ####
 
-def format_IPv4Address(address):
+def format_ipv4_address(address):
     return '.'.join(map(str, address))
 
-def format_MACAdress(address):
+
+def format_mac_address(address):
     return ':'.join(map('{:02x}'.format, address))
 
-    
+
+if __name__ == '__main__':
+    main()
