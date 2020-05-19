@@ -3,15 +3,8 @@ import struct
 
 
 def main():
-    # the public network interface
-    HOST = socket.gethostbyname(socket.gethostname())
     # create a raw socket and bind it to the public interface
-    raw_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
-    raw_socket.bind((HOST, 0))
-    # Include IP headers
-    raw_socket.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
-    # receive all packages
-    raw_socket.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
+    raw_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.htons(0x0800))
 
     print("Sniffer started please introduce number of packages you wan to capture")
     print("Number of packages: ", end="")
@@ -109,7 +102,7 @@ def analyze_tcp(raw_data):
     print('Source Port: {}, Destination Port: {}'.format(source_port, dest_port))
     print('Sequence Number: {}, Acknoledgement: {}'.format(seq_number, ack))
     print('Offset: {}, Reserved: {}'.format(offset, reserved))
-    print('Flags: {}, Reserved: {}'.format(offset, reserved))
+    print('Flags: {}'.format(ns_flag, cwr_flag, ece_flag, urg_flag, ack_flag, psh_flag, rst_flag, syn_flag, fin_flag))
     print('Window: {}, Checksum: {}, Urgent Pointer: {}'.format(window, checksum, urgent_pointer))
 
     return (source_port | dest_port) == 53, raw_data[20:]
@@ -147,6 +140,11 @@ def analyze_dns(raw_data):
     authority = dns_header[4]
 
     print('###############   DNS   ###############')
+    print('Identity: ', ident)
+    print('Questions: ', total_quest)
+    print('Flags: {}'.format(qr, op_code, aa_flag, tc_flag, rd_flag, ra_flag, z_flag, ad_flag, cd_flag, rcode))
+    print('Answers: ', total_ans)
+    print('Authority: ', authority)
 
 
 def format_ipv4_address(address):
