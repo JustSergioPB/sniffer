@@ -4,16 +4,16 @@ import struct
 
 def main():
     # create a raw socket and bind it to the public interface
-    raw_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.htons(0x0800))
+    raw_socket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 
-    print("Sniffer started please introduce number of packages you wan to capture")
+    print("Sniffer started please introduce number of packages you want to capture")
     print("Number of packages: ", end="")
     packages_number = int(input())
 
     for i in range(packages_number):
-        print('############### {} Package ###############'.format(i))
+        print('############### {} Package ###############'.format(i+1))
         raw_data = raw_socket.recvfrom(65535)
-        ether_protocol, ether_data = analyze_ethernet(raw_data)
+        ether_protocol, ether_data = analyze_ethernet(raw_data[0])
 
         if ether_protocol == 8:
             ip_protocol, ip_data = analyze_ip(ether_data)
@@ -32,10 +32,10 @@ def main():
 
 
 def analyze_ethernet(raw_data):
-    ethernet_header = struct.unpack("!6s6sH", raw_data[:14])
-    dest_mac = ethernet_header[0]
-    sour_mac = ethernet_header[1]
-    protocol = ethernet_header[2] >> 8
+    ethernet_header = struct.unpack('!6s 6s H', raw_data[:14])
+    dest_mac = format_mac_address(ethernet_header[0])
+    sour_mac = format_mac_address(ethernet_header[1])
+    protocol = socket.htons(ethernet_header[2])
 
     print('############### ETHERNET ###############')
     print('Destination MAC: {}, Source MAC: {}, Protocol: {}'.format(dest_mac, sour_mac, protocol))
@@ -56,8 +56,8 @@ def analyze_ip(raw_data):
     ttl = ip_header[5]
     protocol = ip_header[6]
     checksum = ip_header[7]
-    sour_address = format_ipv4_address(ip_header[8])
-    dest_address = format_ipv4_address(ip_header[9])
+    sour_address = socket.inet_ntoa(struct.pack("!I", ip_header[8]))
+    dest_address = socket.inet_ntoa(struct.pack("!I", ip_header[9]))
 
     print('###############    IP    ###############')
     print('Version: {}, IHL: {}, ToS: {}, Total Length: {}'.format(version, ihl, tos, total_length))
@@ -102,7 +102,7 @@ def analyze_tcp(raw_data):
     print('Source Port: {}, Destination Port: {}'.format(source_port, dest_port))
     print('Sequence Number: {}, Acknoledgement: {}'.format(seq_number, ack))
     print('Offset: {}, Reserved: {}'.format(offset, reserved))
-    print('Flags: {}'.format(ns_flag, cwr_flag, ece_flag, urg_flag, ack_flag, psh_flag, rst_flag, syn_flag, fin_flag))
+    print('Flags: {}'.format(hex(tcp_header[4])))
     print('Window: {}, Checksum: {}, Urgent Pointer: {}'.format(window, checksum, urgent_pointer))
 
     return (source_port | dest_port) == 53, raw_data[20:]
@@ -115,11 +115,14 @@ def analyze_udp(raw_data):
     length = udp_header[2]
     checksum = udp_header[3]
 
+    dns = False
+    if source_port == 53 or dest_port == 53:
+        dns = True
+
     print('###############   UDP   ###############')
     print('Source Port: {}, Destination Port: {}, length: {}, checksum: {}'.format(source_port, dest_port, length,
                                                                                    checksum))
-
-    return (source_port | dest_port) == 53, raw_data[8:]
+    return dns, raw_data[8:]
 
 
 def analyze_dns(raw_data):
@@ -141,14 +144,10 @@ def analyze_dns(raw_data):
 
     print('###############   DNS   ###############')
     print('Identity: ', ident)
+    print('Flags: {}'.format(hex(dns_header[1])))
     print('Questions: ', total_quest)
-    print('Flags: {}'.format(qr, op_code, aa_flag, tc_flag, rd_flag, ra_flag, z_flag, ad_flag, cd_flag, rcode))
     print('Answers: ', total_ans)
     print('Authority: ', authority)
-
-
-def format_ipv4_address(address):
-    return '.'.join(map(str, address))
 
 
 def format_mac_address(address):
